@@ -215,169 +215,171 @@
     <script class="$tsr" id="$tsr-stream-barrier">(self.$R=self.$R||{})["tsr"]=[];self.$_TSR={h(){this.hydrated=!0,this.c()},e(){this.streamEnded=!0,this.c()},c(){this.hydrated&&this.streamEnded&&(delete self.$_TSR,delete self.$R.tsr)},p(e){this.initialized?e():this.buffer.push(e)},buffer:[]};$_TSR.router=($R=>$R[0]={manifest:$R[1]={routes:$R[2]={__root__:$R[3]={preloads:$R[4]=["/assets/index-BlMHECI2.js","/assets/jsx-runtime-BkSabwWG.js","/assets/link-D_GAJQi1.js"],scripts:$R[5]=[$R[6]={attrs:$R[7]={type:"module",async:!0,src:"/assets/index-BlMHECI2.js"}}]},"/patients":$R[8]={preloads:$R[9]=["/assets/patients-D5wt2os4.js"]},"/patients/appointment":$R[10]={preloads:$R[11]=["/assets/patients.appointment-BUDmL5_C.js","/assets/ActionBlocks-CaxDwNuD.js","/assets/textarea-Bp5txHWl.js","/assets/PageHeader-Dlg2N652.js","/assets/input-BbtkWH-D.js","/assets/forms-R07u4grP.js"]}}},matches:$R[12]=[$R[13]={i:"__root__ ",u:1790773354509,s:"success",ssr:!0},$R[14]={i:" patients patients",u:1790773354509,s:"success",ssr:!0},$R[15]={i:" patients appointment patients appointment",u:1790773354513,s:"success",ssr:!0}],lastMatchId:" patients appointment patients appointment"})($R["tsr"]);$_TSR.e();document.currentScript.remove()</script>
 
     <script>
-      // ============================================================
-      // Post-hydration fixes for the Appointment page:
-      //   1) Remove "Success Stories" tab from sub-nav
-      //   2) Remove "Patient Success Stories" from footer nav
-      //   3) Remove "PAZ Family Clinics" text from footer
-      //   4) Add "Gynecologist" option to the doctor dropdown
-      //   5) Pre-select "Gynecologist" if URL has ?doctor=gynecologist
-      //   6) When URL has ?doctor=gynecologist, submit → WhatsApp
-      // ============================================================
+      /* ================================================================
+         PAZ Family Clinics — Appointment page: bulletproof post-hydration
+         ------------------------------------------------------------------
+         • document-level event delegation (survives React re-renders)
+         • MutationObserver instead of setInterval (no race, no flicker)
+         • WhatsApp opens reliably every time for gynecology requests
+         ================================================================ */
       (function () {
         var WHATSAPP_NUMBER = "923005479663";
         var EMAIL = "info@pazfamilyclinics.com";
 
-        function getDoctorFromURL() {
-          try {
-            return new URLSearchParams(window.location.search).get("doctor");
-          } catch (e) {
-            return null;
-          }
+        function isAppointmentPage() {
+          return /\/patients\/appointment/.test(location.pathname);
         }
 
-        function getFieldValue(form, id) {
+        function getDoctorFromURL() {
+          try { return new URLSearchParams(location.search).get("doctor"); }
+          catch (e) { return null; }
+        }
+
+        function getVal(form, id) {
           var el = form.querySelector("#" + id) || form.querySelector('[name="' + id + '"]');
-          return el ? (el.value || "").trim() : "";
+          return el ? String(el.value || "").trim() : "";
         }
 
         function buildMessage(form) {
-          var name = getFieldValue(form, "name");
-          var phone = getFieldValue(form, "phone");
-          var doctor = getFieldValue(form, "doctor");
-          var date = getFieldValue(form, "date");
-          var time = getFieldValue(form, "time");
-          var reason = getFieldValue(form, "reason");
-          var notes = getFieldValue(form, "notes");
-
           var lines = [];
           lines.push("New Appointment Request — PAZ Family Clinics");
           lines.push("-----------------------------------------");
+          var doctor = getVal(form, "doctor");
           if (doctor) lines.push("Doctor: " + doctor);
           lines.push("");
-          if (name) lines.push("Patient Name: " + name);
-          if (phone) lines.push("Phone: " + phone);
-          if (date) lines.push("Preferred Date: " + date);
-          if (time) lines.push("Preferred Time: " + time);
+          var name   = getVal(form, "name");
+          var phone  = getVal(form, "phone");
+          var date   = getVal(form, "date");
+          var time   = getVal(form, "time");
+          var reason = getVal(form, "reason");
+          var notes  = getVal(form, "notes");
+          if (name)   lines.push("Patient Name: " + name);
+          if (phone)  lines.push("Phone: " + phone);
+          if (date)   lines.push("Preferred Date: " + date);
+          if (time)   lines.push("Preferred Time: " + time);
           if (reason) lines.push("Reason for Visit: " + reason);
-          if (notes) lines.push("Additional Notes: " + notes);
+          if (notes)  lines.push("Additional Notes: " + notes);
           return lines.join("\n");
         }
 
-        function openWhatsApp(message) {
-          var url = "https://wa.me/" + WHATSAPP_NUMBER + "?text=" + encodeURIComponent(message);
-          window.open(url, "_blank");
+        function openWhatsApp(msg) {
+          window.open(
+            "https://wa.me/" + WHATSAPP_NUMBER + "?text=" + encodeURIComponent(msg),
+            "_blank"
+          );
+        }
+        function openEmail(msg) {
+          window.location.href =
+            "mailto:" + EMAIL +
+            "?subject=" + encodeURIComponent("Appointment Request — PAZ Family Clinics") +
+            "&body=" + encodeURIComponent(msg);
+        }
+        function send(msg) {
+          try { openWhatsApp(msg); } catch (e) { openEmail(msg); }
         }
 
-        function openEmail(message) {
-          var subject = "Appointment Request — PAZ Family Clinics";
-          var body = encodeURIComponent(message);
-          window.location.href = "mailto:" + EMAIL + "?subject=" + encodeURIComponent(subject) + "&body=" + body;
+        function isGyn(form) {
+          if (getDoctorFromURL() === "gynecologist") return true;
+          var sel = form.querySelector("#doctor") || form.querySelector('[name="doctor"]');
+          return sel && sel.value === "Gynecologist";
         }
 
-        function sendViaWhatsApp(form) {
-          var message = buildMessage(form);
-          try {
-            openWhatsApp(message);
-          } catch (err) {
-            openEmail(message);
-          }
-        }
+        /* ---------- 1) Submit interception (document-level, capture) ---------- */
+        document.addEventListener(
+          "submit",
+          function (e) {
+            var form = e.target;
+            if (!form || form.tagName !== "FORM") return;
+            if (!isAppointmentPage()) return;
+            if (!isGyn(form)) return;
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            send(buildMessage(form));
+          },
+          true
+        );
 
-        function run() {
-          var main = document.querySelector("main");
-          var footer = document.querySelector("footer");
-          if (!main) return;
+        /* ---------- 2) "Send via WhatsApp" button (document-level, capture) ---------- */
+        document.addEventListener(
+          "click",
+          function (e) {
+            var t = e.target;
+            if (!t || !t.closest) return;
+            var btn = t.closest("[data-send-whatsapp]");
+            if (!btn) return;
+            var form = btn.closest("form");
+            if (!form) return;
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            send(buildMessage(form));
+          },
+          true
+        );
 
-          // 1) Remove "Success Stories" tab from sub-nav
-          var subNav = main.querySelector('nav[aria-label="Patient and families sections"]');
-          if (subNav) {
-            subNav.querySelectorAll("a").forEach(function (a) {
-              if (a.textContent.trim() === "Success Stories" && a.parentNode) {
-                a.parentNode.remove();
-              }
-            });
-          }
+        /* ---------- 3) Dropdown: add gynecologist option + pre-select ---------- */
+        function ensureGynOption() {
+          if (!isAppointmentPage()) return;
+          var sel = document.querySelector('select[id="doctor"], select[name="doctor"]');
+          if (!sel) return;
 
-          // 2 & 3) Footer cleanup
-          if (footer) {
-            footer.querySelectorAll("nav a").forEach(function (a) {
-              if (a.textContent.trim() === "Patient Success Stories" && a.parentNode) {
-                a.parentNode.remove();
-              }
-            });
-            footer.querySelectorAll("p").forEach(function (p) {
-              if (p.textContent.trim() === "PAZ Family Clinics") p.remove();
-            });
-          }
-
-          // 4) Add Gynecologist option to dropdown
-          var doctorSelect = main.querySelector('select[id="doctor"], select[name="doctor"]');
-          if (doctorSelect && !doctorSelect.querySelector('[data-gyn-option]')) {
+          if (!sel.querySelector('[data-gyn-option]')) {
             var opt = document.createElement("option");
             opt.value = "Gynecologist";
             opt.setAttribute("data-gyn-option", "1");
             opt.textContent = "Gynecologist — Women’s Health";
-            doctorSelect.appendChild(opt);
+            sel.appendChild(opt);
           }
 
-          // 5) Pre-select Gynecologist when URL says so
-          var doctorParam = getDoctorFromURL();
-          if (doctorParam === "gynecologist" && doctorSelect) {
-            doctorSelect.value = "Gynecologist";
-            // Dispatch change so React state updates
-            doctorSelect.dispatchEvent(new Event("change", { bubbles: true }));
-          }
-
-          // 6) Intercept form when URL has ?doctor=gynecologist
-          var form = main.querySelector("form");
-          if (!form) return;
-
-          var isGynRequest = doctorParam === "gynecologist";
-          var isGynSelected = doctorSelect && doctorSelect.value === "Gynecologist";
-
-          if (isGynRequest || isGynSelected) {
-            // Prevent default submit → send to WhatsApp instead
-            if (form.getAttribute("data-gyn-submit") !== "1") {
-              form.setAttribute("data-gyn-submit", "1");
-              form.addEventListener(
-                "submit",
-                function (e) {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  sendViaWhatsApp(form);
-                  return false;
-                },
-                true
-              );
-            }
-          }
-
-          // Also wire the "Send via WhatsApp" button to use our message builder
-          var waBtn = main.querySelector('[data-send-whatsapp]');
-          if (waBtn && waBtn.getAttribute("data-wired") !== "1") {
-            waBtn.setAttribute("data-wired", "1");
-            waBtn.addEventListener(
-              "click",
-              function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-                sendViaWhatsApp(form);
-                return false;
-              },
-              true
-            );
+          if (getDoctorFromURL() === "gynecologist" && sel.value !== "Gynecologist") {
+            sel.value = "Gynecologist";
+            try { sel.dispatchEvent(new Event("change", { bubbles: true })); } catch (e) {}
           }
         }
 
-        var tries = 0;
-        var timer = setInterval(function () {
-          run();
-          if (++tries > 100) clearInterval(timer);
-        }, 300);
+        /* ---------- 4) Clean-up: sub-nav + footer ---------- */
+        function subNavCleanup() {
+          var subNav = document.querySelector('nav[aria-label="Patient and families sections"]');
+          if (!subNav) return;
+          subNav.querySelectorAll("a").forEach(function (a) {
+            if (a.textContent.trim() === "Success Stories" && a.parentNode) {
+              a.parentNode.remove();
+            }
+          });
+        }
+        function footerCleanup() {
+          var footer = document.querySelector("footer");
+          if (!footer) return;
+          footer.querySelectorAll("p").forEach(function (p) {
+            if (p.textContent.trim() === "PAZ Family Clinics") p.style.display = "none";
+          });
+          footer.querySelectorAll("nav a").forEach(function (a) {
+            if (a.textContent.trim() === "Patient Success Stories" && a.parentNode) {
+              a.parentNode.remove();
+            }
+          });
+        }
 
-        if (document.readyState === "complete") run();
-        else window.addEventListener("load", run);
+        /* ---------- 5) Run + observe (debounced) ---------- */
+        function run() {
+          try { ensureGynOption(); } catch (e) {}
+          try { subNavCleanup(); }   catch (e) {}
+          try { footerCleanup(); }   catch (e) {}
+        }
+
+        var debounceTimer;
+        try {
+          var observer = new MutationObserver(function () {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(run, 80);
+          });
+          observer.observe(document.documentElement, { childList: true, subtree: true });
+        } catch (e) {}
+
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", run);
+        } else {
+          run();
+        }
       })();
     </script>
 
