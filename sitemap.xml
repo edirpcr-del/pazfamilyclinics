@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>/</loc><priority>1.0</priority></url>
+  <url><loc>/about</loc><priority>0.8</priority></url>
+  <url><loc>/patients</loc><priority>0.8</priority></url>
+  <url><loc>/patients/appointment</loc><priority>0.9</priority></url>
+  <url><loc>/patients/find-a-doctor</loc><priority>0.9</priority></url>
+  <url><loc>/patients/find-lab-test</loc><priority>0.5</priority></url>
+  <url><loc>/patients/guides</loc><priority>0.7</priority></url>
+  <url><loc>/patients/success-stories</loc><priority>0.7</priority></url>
+  <url><loc>/join-us</loc><priority>0.5</priority></url>
+  <url><loc>/privacy-policy</loc><priority>0.3</priority></url>
+  <url><loc>/terms-of-use</loc><priority>0.3</priority></url>
+</urlset>
